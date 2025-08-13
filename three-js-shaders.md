@@ -3,6 +3,9 @@
 - [What is Shader](#what-is-shader)
 - [Shader Setup](#shader-setup)
 - [GLSL Basics](#glsl-basics)
+- [Attributes And Uniforms](#attributes-and-uniforms)
+- [UVs And Normals](#uvs-and-normals)
+- [Varying](#varyings)
 
 ## What is Shader
 
@@ -213,7 +216,232 @@ bvec3 isEqual = equal(vec3(1), vec3(0)); // should be false, using equal functio
 gl_FragColor = vec4(isEqual, 1); //takes bvec3 and converts it to float
 ```
 
+---
 
+## Attributes And Uniforms
+
+`vertex.glsl`
+
+```
+void main() {
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+```
+
+
+**RawShaderMaterial**
+
+It doesn't have the boilerplate code, which provides values for the vertexShader
+- projectionMatrix
+- modelViewMatrix
+- position
+
+```
+const material = new THREE.RawShaderMateril({
+  vertexShader: vertexShader,
+  fragmentShader: fragmentShader
+})
+```
+
+```
+attribute vec3 position;
+
+uniform mat4 projectionMatrix;
+uniform mat4 modelViewMatrix;
+
+
+void main() {
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+```
+
+**Attributes**
+
+```
+console.log(geometry)
+```
+
+Javascript and three.js needs to communicate with Shader. We need to send data to Shader
+
+For example, `IcosahedronGeometry.attributes.position.array` contains `6480` points to construct the sphere.
+
+We are sending this array to the vertexShader, and the vertexShader draws the triangles
+
+Attributes are vertex specific data, that we are storing in an array
+
+**Uniforms**
+
+```
+mat4 -> 4x4 matrix
+mat2
+[0, 0
+ 0, 0]
+
+max2x2
+max2x3
+
+```
+
+```
+console.log(material)
+```
+
+`RawShaderMaterial.uniforms // empty object`
+
+```
+material.uniforms.uTime = {
+  value: 0
+}
+```
+
+**Example**
+
+Three.js is passing the uniforms through the material. The uniform here is the same for every single vertex
+- modelViewMatrix is actually two vertices
+  - modelMatrix provides the transfrom of our model
+  - viewMatrix provides the transform of our camera
+
+**Uniforms Key Characteristics**
+- Same for all vertices or fragments: It doesn’t change from pixel to pixel or vertex to vertex during one draw call.
+- Read-only: You can use it in your shader, but you can’t change it inside the shader.
+- Set by the CPU side: You update it from your main application code, not from within GLSL.
+
+
+```
+attribute vec3 position;
+
+uniform mat4 projectionMatrix;
+uniform mat4 modelViewMatrix;
+
+uniform mat4 modelMatrix;
+uniform mat4 viewMatrix;
+
+uniform float uTime
+
+void main() {
+  // Transform -> position, scale, rotation
+  // modelMatrix -> position, scale, rotation of our model
+  // viewMatrix -> position, orientation of camera
+  // projectionMatrix -> projects our object onto the screen (aspect ratio & the perspective)
+
+  // MVP
+  gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0);
+}
+```
+
+A uniform can be used also in the FragmentShader
+
+
+```
+precision mediump float;
+```
+
+---
+
+## UVs And Normals
+
+```
+attribute vec3 position;
+
+uniform mat4 projectionMatrix;
+uniform mat4 modelViewMatrix;
+
+uniform mat4 modelMatrix;
+uniform mat4 viewMatrix;
+
+uniform float uTime
+
+void main() {
+  // MVP
+  vec4 modelViewPosition = modelViewMatrix * vec4(position, 1.0);
+  vec4 projectedPosition = projectionMatrix * modelViewPosition;
+
+  gl_Position = projectedPosition;
+}
+```
+
+```
+console.log(geometry.attributes)
+```
+- normal
+- position
+- uv
+
+**Normals**
+
+For each vertex we have a normal, it is the orientation of the vertex at a certain point, on the surface of the object
+- It's used for lighting and shading in shaders.
+- GLSL uses it as an attribute in the vertex shader and often passes it to the fragment shader for per-pixel lighting.
+
+**UVs**
+
+We use UV coordinates when we want to project a texture on the object
+- UVs are coordinates in the 2-D space
+- We can map a texture to our object
+
+---
+
+## Varyings
+
+Javascript
+- attributes
+  - Vertex Specific
+  - Only vertex shader can access them
+- Uniforms
+  - global
+  - Both for Vertex and Fragment Shader
+
+The **communication between the vertex shader and the fragment shader** is the key part
+
+Varyings are used to send vertex data from the vertex shader to the fragment shader
+
+**Vertex Shader**
+
+```
+uniform float uTime;
+
+varying vec3 vPosition;
+varying vec3 vNormal;
+varying vec2 vUv;
+
+void main(){
+  vPosition = position;
+  vNormal = normal;
+  vUv = uv;
+
+  //MVP
+  vec4 modelViewPosition = modelViewMatrix * vec4(position, 1.0);
+  vec4 projectedPosition = projectionMatrix * modelViewPosition;
+  gl_Position = projectedPosition;
+}
+
+```
+
+**Fragment Shader**
+```
+uniform float uTime;
+
+varying vec3 vPosition;
+varying vec3 vNormal;
+varying vec2 vUv;
+
+void main(){
+  // gl_FragColor = vec4(vPosition, 1);
+  // gl_FragColor = vec4(vUv, 0, 1);
+
+ gl_FragColor = vec4(mix(vec3(0), vec3(1), vUv.x), 1); // interpolation with mix function
+}
+```
+
+**Flat**
+
+```
+flat varying vec2 vUv
+```
+
+When you add flat you disable interpolation for that varying
+
+---
 
 
 
